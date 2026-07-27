@@ -1,57 +1,98 @@
-import base64
-import mimetypes
-import requests
-
+from langchain_qwq import ChatQwen
 from config import settings
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.prompts import PrompTemplate
+
+import random
+import time
+from typing import Any
+
+import httpx
+from openai._exceptions import APIConnectionError
 
 
-class QwenImageToText:
+def get_qwen_llm():
+    """ Instantiates a Qwen chat model """
+    llm = ChatQwen(
+        model=settings.qwen_model_name,
+        temperature=0,
+        api_key=settings.hf_token.get_secret_value(),
+        base_url=settings.hf_api_url
+    )
 
-    def __init__(self):
-        self.api_url = settings.hf_api_url
-        self.model_name = settings.qwen_model_name
-        self.headers = {
-            "Authorization": f"Bearer {settings.hf_token}",
-        }
-
-
-
-    def file_to_data_url(self, img_path):
-        mime_type, _ = mimetypes.guess_type(img_path)
-        mime_type = mime_type or "image/jpg"
-        with open(img_path, 'rb') as f:
-            encoded = base64.b64encode(f.read()).decode('utf-8')
-        return f"data:{mime_type};base64,{encoded}"
+    return llm
 
 
-    def query(self, payload):
+def _is_transient_error(exc: Exception) -> bool:
+    transient_types = (
+        httpx.ReadError,
+        httpx.ConnectError,
+        httpx.TimeoutException,
+        httpx.NetworkError,
+        APIConnectionError
+    )
+    current: BaseException | None = exc
+    seen: set[int] = set()
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+
+        if isinstance(current, transient_types):
+            return True
+
+        msg = str(current).lower()
+        transient_markers = (
+            "winerror 10053",
+            "connection reset",
+            "connection aborted",
+            "read error",
+            "timed out",
+            "temporarily unavailable",
+            "remote host closed",
+            "connection error"  # openai specific
+        )
+
+        if any(marker in msg for marker in transient_markers):
+            return True
+
+        current = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
+
+    return False
+
+def invoke_qwen_with_retry(
+        structured_llm: ChatQwen,
+        messages: Any,
+        *,
+        max_attempts: int = 5,
+        base_delay_seconds: float = 1.0,
+        max_delay_seconds: float = 8.0
+):
+
+    if max_attempts < 1:
+        raise ValueError("max_attempts must be at least 1")
+
+    last_exc : Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
+       try:
+           return structured_llm.invoke(messages)
+       except Exception as exc:
+           last_exc = exc
+           is_transient = _is_transient_error(exc)
+           is_last_retry = attempt == max_attempts
+
+           if (not is_transient) or is_last_retry:
+               raise
+
+           backoff = min(base_delay_seconds * (2 ** (attempt - 1)), max_delay_seconds)
+           jitter = random.uniform(0.0, 0.3)
+           time.sleep(backoff + jitter)
+
+    if last_exc is not None:
+        raise last_exc
+
+    raise RuntimeError("qwen_retry_with_jitter failed without capturing an exception")
 
 
 
-        response = requests.post(self.api_url, headers=self.headers, json=payload)
-        return response.json()['choices'][0]['message']
 
-    response = query({
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "Describe this image in one sentence."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": "https://cdn.britannica.com/61/93061-050-99147DCE/Statue-of-Liberty-Island-New-York-Bay.jpg"
-                        }
-                    }
-                ]
-            }
-        ],
-        "model": "Qwen/Qwen2.5-VL-7B-Instruct:featherless-ai"
-    })
 
-    print(response["choices"][0]["message"])
+qwen_llm = get_qwen_llm()
