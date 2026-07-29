@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, ValidationError, AfterValidator
 import re
 from typing import Annotated
+import datetime
 
 
 def check_subject(subject, title) -> str:
@@ -24,17 +25,19 @@ class BaseRecord(BaseModel):
 
 
 class RecordMetadata(BaseRecord):
-    folder_name: str = Field(min_length=1, description="Name of the folder containing the record")
-    file_name: str = Field(min_length=1, description="Name of the file, as it appears in the folder")
-    creator: str | None = Field(description="Creator of the record, if known")
-    description: str | None = Field(description="The size of file in MB")
-    publisher: str | None = Field(description="Publisher of the record, if known")
-    contributor: str | None = Field(description="Anyone who has contributed to the creation of the record if not already listed as Creator or Publisher")
-    date: str | None = Field(description="Date the file was created")
-    type: str | None = Field(description="Type of the record, e.g. image, drawing, photograph, etc.")
-    format: str | None = Field(description="Format of the file, e.g. jpg, png, etc.")
-    identifier: str = ""  # column needed, field never used
-    language: str = Field(description="Language of the record if relevant, e.g. English", default="english")
-    relation: str = ""  # column needed, field never used
-    coverage: str = ""  # column needed, field never used
-    rights: str = ""  # column needed, field never used
+    folder_name  : str = Field(min_length=1, description="Name of the folder containing the record")
+    file_name    : str = Field(min_length=1, description="Name of the file, as it appears in the folder")
+    language     : str = Field(description="Language of the record if relevant, e.g. English", default="english")
+    creator      : str | None = Field(description="Creator of the record, if known")
+    description  : str | None = Field(description="The size of file in MB")
+    publisher    : str | None = Field(description="Publisher of the record, if known")
+    contributor  : str | None = Field(
+        description="Anyone who has contributed to the creation of the record if not already Creator or Publisher")
+    date         : str | None = Field(description="Date the file was created", default=datetime.now())
+    type         : str | None = Field(
+        description="Type of the record, e.g. image, drawing, photograph, etc.", default='photograph')
+    format       : str | None = Field(description="Format of the file, e.g. jpg, png, etc.")
+    identifier   : str = ""  # column needed, field never used
+    relation     : str = ""  # column needed, field never used
+    coverage     : str = ""  # column needed, field never used
+    rights       : str = ""  # column needed, field never used
