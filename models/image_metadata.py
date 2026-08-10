@@ -2,11 +2,35 @@ from pydantic import BaseModel, Field, ConfigDict
 
 
 class RecordMetadata(BaseModel):
+    """ A row in the final csv, one row per record.
 
-    model_config = ConfigDict(populate_by_name=True)
+    Some must be manually populated in the output file:
+    - title
+    - creator
+    - subject
+    - publisher
+    - contributor
+    - source
 
-    folder_name : str = Field(description="Name of the folder containing the record", alias="Folder")
-    file_name : str = Field(description="Name of the file, as it appears in the folder", alias="File")
+    Some fields are required as columns but not used in the current project:
+    - identifier
+    - relation
+    - coverage
+    - rights
+
+    Anything with a populated default value may be updated later if incorrect
+
+    AI-populated fields - TODO - future work if time allows
+    - description of what's in the picture
+    - subject
+    """
+
+    model_config = ConfigDict(populate_by_name=True)  # validation will happen on var names and not aliases
+
+    folder_name : str = Field(
+        description="Name of the folder containing the record", alias="Folder")
+    file_name : str = Field(
+        description="Name of the file, as it appears in the folder", alias="File")
     title : str = Field(
         description="Description of the record, e.g. 'Photograph of loading bay from Old Civic Centre'",
         default="", alias="Title")
@@ -31,11 +55,8 @@ class RecordMetadata(BaseModel):
         description="Format of the file, e.g. jpg, png, etc.",
         default="", alias="Format")
     identifier : str = Field(default="N/A", alias="Identifier")  # column needed, field never used
-    source    : str = Field(description="Where the file comes from (e.g. Memory Stick)", default="", alias="Source") # metadata extraction error, if any
+    source : str = Field(description="Where the file comes from (e.g. Memory Stick)", default="", alias="Source") # metadata extraction error, if any
     language : str = Field(description="Language of the record if relevant, e.g. English", default="N/A", alias="Language")
-    relation     : str = Field(default="N/A", alias="Relation")  # column needed, field never used
-    coverage     : str = Field(default="N/A", alias="Coverage")  # column needed, field never used
-    rights       : str = Field(default="N/A", alias="Rights")    # column needed, field never used
-
-
-#print(RecordMetadata.model_json_schema())
+    relation : str = Field(default="N/A", alias="Relation")  # column needed, field never used
+    coverage : str = Field(default="N/A", alias="Coverage")  # column needed, field never used
+    rights : str = Field(default="N/A", alias="Rights")    # column needed, field never used

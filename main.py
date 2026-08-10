@@ -25,9 +25,10 @@ metadata_list = []
 st.title("Select a Folder")
 
 folder_input = st.text_input(
-    "Enter the folder path",
+    "Enter the full folder path (must only contain flat jpg, jpeg or png files):",
     placeholder=r"C:\Users\YourName\Documents",
 )
+image_processing_errors = []
 
 if st.button("Select Folder"):
     if not folder_input.strip():
@@ -36,24 +37,36 @@ if st.button("Select Folder"):
         folder_path = Path(folder_input).expanduser().resolve()
 
         if folder_path.is_dir():
-            st.success("Folder selected")
-            st.write("Absolute folder path:")
-            st.code(str(folder_path))
+            st.success("Folder found!")
+            st.write(f"Processing folder {folder_path}...")
             image_files = get_image_files(folder_path)
-            st.code(f"Found {len(image_files)} images!")
+            total_images = len(image_files)
+            st.success(f"Found {len(image_files)} images!")
             st.write("Extracting image metadata...")
             for image_file in image_files:
-                img_meta = extract_with_pillow(image_file)
-                metadata_list.append(img_meta)
-                st.write(f"Image: {image_file}")
+                st.write(f"Processing {image_file}...")
+                try:
+                    img_meta = extract_with_pillow(image_file)
+                    metadata_list.append(img_meta)
+                except:
+                    st.code(f"Error getting metadata for file {image_file} - skipping")
+                    image_processing_errors.append(image_file)
+
+            total_processed = total_images - len(image_processing_errors)
+
+            if image_processing_errors:
+                st.warning(f"Processed {total_processed}/{total_images} images")
+                st.warning(f"The following files could not be processed: {'\n- '.join(image_processing_errors)}")
+            else:
+                st.success(f"Done! Processed {total_processed}/{total_images} images")
+
             columns = [field.alias or field_name for field_name, field in RecordMetadata.model_fields.items()]
             df = pd.DataFrame(data=metadata_list, columns=columns)
-            df['File'] = df['File'].astype(str)
 
-            st.code("Creating CSV file...")
+            st.write("Creating CSV file...")
             df.to_csv(Path(folder_path / "metadata.csv"), index=False)
 
             # Also prints to the terminal running Streamlit
-            st.code(f"Done! CSV created at {folder_path / 'metadata.csv'}")
+            st.success(f"Done! CSV created at {folder_path / 'metadata.csv'}")
         else:
-            st.error("The folder does not exist or is not a directory.")
+            st.error(f"The folder {folder_path} does not exist or is not a directory.")
